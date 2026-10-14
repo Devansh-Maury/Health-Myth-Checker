@@ -11,8 +11,6 @@ from google.genai import types
 
 load_dotenv()
 
-MODEL = "gemini-3.8-flash"   # if you get "model not found", try "gemini-flash-latest"
-
 st.set_page_config(page_title="Health Myth Checker", page_icon="🩺", layout="centered")
 
 # ---------- Look and feel ----------
