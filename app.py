@@ -103,12 +103,12 @@ STYLES = {"False": "s-false", "Misleading": "s-misleading",
           "Supported": "s-supported", "Unverified": "s-unverified"}
 
 
-MODELS = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash"]
+MODELS = ["gemini-3.8-flash", "gemini-flash-latest"]
 
 def check_claim(text):
-    last_error = None
-    for model in MODELS:                 # try each model in turn
-        for attempt in range(2):         # two tries per model
+    first_error = None
+    for model in MODELS:
+        for attempt in range(3):         # up to three tries per model
             try:
                 response = client.models.generate_content(
                     model=model,
@@ -124,9 +124,13 @@ def check_claim(text):
                     data["verdict"] = "Unverified"
                 return data
             except Exception as e:
-                last_error = e
-                time.sleep(1.5)          # short pause before retrying
-    raise last_error
+                msg = str(e)
+                if "404" in msg or "NOT_FOUND" in msg:
+                    break                # model doesn't exist, skip it, don't retry
+                if first_error is None:
+                    first_error = e      # keep the real error, not a later 404
+                time.sleep(2 * (attempt + 1))   # wait 2s, 4s, 6s if busy
+    raise first_error or RuntimeError("No available model responded.")
 def set_text(value):
     st.session_state["text"] = value
 
