@@ -2,7 +2,7 @@
 Health Myth Checker lets you paste a health message or claim, in English, Hindi or Hinglish, and checks it against a hand-built database of 92 myths based on sources such as WHO, CDC and NHS. It returns a verdict (False, Misleading, Supported or Unverified) with a plain-language explanation and sources. If a claim is not in the database, it says “Unverified” instead of guessing. This is not medical advice.
 ## About this project
 
-Built by **Devansh Maurya** for **[competition name]**, 2026.
+Built by **Devansh Maurya** for **Inter School Competition held in Varanasi**, 2026.
 
 **Problem:** Health myths spread quickly through WhatsApp forwards and many people can't tell which are false.
 
