@@ -1,6 +1,7 @@
 import html
 import json
 import os
+import time
 
 import pandas as pd
 import streamlit as st
@@ -103,21 +104,31 @@ KNOWLEDGE BASE:
 STYLES = {"False": "s-false", "Misleading": "s-misleading",
           "Supported": "s-supported", "Unverified": "s-unverified"}
 
-def check_claim(text):
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=text,
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            response_mime_type="application/json",
-            temperature=0.2,
-        ),
-    )
-    data = json.loads(response.text)
-    if data.get("verdict") not in STYLES:
-        data["verdict"] = "Unverified"
-    return data
 
+MODELS = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash"]
+
+def check_claim(text):
+    last_error = None
+    for model in MODELS:                 # try each model in turn
+        for attempt in range(2):         # two tries per model
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=text,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_PROMPT,
+                        response_mime_type="application/json",
+                        temperature=0.2,
+                    ),
+                )
+                data = json.loads(response.text)
+                if data.get("verdict") not in STYLES:
+                    data["verdict"] = "Unverified"
+                return data
+            except Exception as e:
+                last_error = e
+                time.sleep(1.5)          # short pause before retrying
+    raise last_error
 def set_text(value):
     st.session_state["text"] = value
 
