@@ -16,4 +16,4 @@ Built by **Devansh Maurya** for **[competition name]**, 2026.
 
 **Limitations:** The app only covers the 92 topics in its database. "Unverified" does not mean a claim is true. It is not medical advice, so please see a doctor for personal health decisions.
 
-**Live app:** [paste your Streamlit link here after deploying]
+**Live app:** health-myth-checker.streamlit.app
