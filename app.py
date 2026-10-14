@@ -103,7 +103,7 @@ STYLES = {"False": "s-false", "Misleading": "s-misleading",
           "Supported": "s-supported", "Unverified": "s-unverified"}
 
 
-MODELS = ["gemini-3.8-flash", "gemini-flash-latest"]
+MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-flash-latest"]
 
 def check_claim(text):
     first_error = None
