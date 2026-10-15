@@ -16,4 +16,4 @@ Built by **Devansh Maurya** for **Inter School Competition held in Varanasi**, 2
 
 **Limitations:** The app only covers the 92 topics in its database. "Unverified" does not mean a claim is true. It is not medical advice, so please see a doctor for personal health decisions.
 
-**Live app:** health-myth-checker.streamlit.app
+**Live app:** sachcheck.streamlit.app
