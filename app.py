@@ -1,15 +1,29 @@
 import html
 import json
 import os
+import random
 import time
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
-load_dotenv()
+# ---------- Settings ----------
+# Models are tried in this order. If one is busy (503) the next one is used.
+MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite",
+          "gemini-3.1-flash-lite", "gemini-3.8-flash"]
+MAX_CHECKS_PER_SESSION = 15
+
+# Load the key from keys.env or .env (next to this file) when running on your PC.
+_here = Path(__file__).parent
+for _name in ("keys.env", ".env"):
+    if (_here / _name).exists():
+        load_dotenv(_here / _name, override=True, encoding="utf-8-sig")
 
 st.set_page_config(page_title="Health Myth Checker", page_icon="🩺", layout="centered")
 
@@ -53,26 +67,28 @@ div.stButton > button[kind="primary"]:hover {background: #0B5D56;}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- Setup ----------
+# ---------- API key ----------
 def get_key():
     key = os.getenv("GEMINI_API_KEY")
     if key:
-        return key
+        return key.strip()
     try:
-        return st.secrets["GEMINI_API_KEY"]   # used after deployment
+        return st.secrets["GEMINI_API_KEY"]   # used on Streamlit Cloud
     except Exception:
         return None
 
 api_key = get_key()
 if not api_key:
-    st.error("API key missing. Add GEMINI_API_KEY to your .env file, then rerun.")
+    st.error("API key missing. On your PC, put GEMINI_API_KEY=... in a file named "
+             "keys.env next to app.py. On Streamlit Cloud, add it under Settings > Secrets.")
     st.stop()
 
 client = genai.Client(api_key=api_key)
 
+# ---------- Knowledge base ----------
 @st.cache_data
 def load_facts():
-    return pd.read_csv("facts.csv")
+    return pd.read_csv("facts.csv").fillna("")
 
 facts = load_facts()
 
@@ -99,17 +115,15 @@ KNOWLEDGE BASE:
 {knowledge}
 """
 
-STYLES = {"False": "s-false", "Misleading": "s-misleading",
-          "Supported": "s-supported", "Unverified": "s-unverified"}
+STYLES = {"False": "s-false", "Misleading": "s-misleading", "Supported": "s-supported",
+          "Unverified": "s-unverified", "Closest match": "s-unverified"}
 
-
-MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite",
-          "gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-flash-latest"]
-
+# ---------- Live AI check (tries several models) ----------
+@st.cache_data(show_spinner=False, ttl=3600)
 def check_claim(text):
     first_error = None
     for model in MODELS:
-        for attempt in range(3):         # up to three tries per model
+        for attempt in range(2):
             try:
                 response = client.models.generate_content(
                     model=model,
@@ -127,11 +141,65 @@ def check_claim(text):
             except Exception as e:
                 msg = str(e)
                 if "404" in msg or "NOT_FOUND" in msg:
-                    break                # model doesn't exist, skip it, don't retry
+                    break                      # model unavailable: skip it
                 if first_error is None:
-                    first_error = e      # keep the real error, not a later 404
-                time.sleep(2 * (attempt + 1))   # wait 2s, 4s, 6s if busy
+                    first_error = e            # keep the first real error
+                time.sleep(1)
     raise first_error or RuntimeError("No available model responded.")
+
+# ---------- Offline backup (no API needed) ----------
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+_EXTRA_WORDS = {"cure", "cures", "cured", "cause", "causes", "caused", "drinking", "eating",
+                "drink", "eat", "help", "helps", "safe", "best", "good", "bad", "fast",
+                "give", "gives"}
+_vec = TfidfVectorizer(stop_words=list(ENGLISH_STOP_WORDS | _EXTRA_WORDS))
+_mat = _vec.fit_transform(facts["viral_myth"] + " " + facts["claim_keywords"])
+
+def offline_check(text):
+    scores = cosine_similarity(_vec.transform([text]), _mat)[0]
+    best = scores.argmax()
+    if scores[best] < 0.3:
+        return {"claim": text, "verdict": "Unverified",
+                "explanation": "This claim is not in the database. Please ask a doctor "
+                               "or check an official health website.",
+                "sources": []}
+    row = facts.iloc[best]
+    return {"claim": "Closest database entry (may not be exactly your claim): " + row["viral_myth"],
+            "verdict": "Closest match",
+            "explanation": row["scientific_fact"],
+            "sources": [s.strip() for s in str(row["verified_sources"]).split(",") if s.strip()]}
+
+# ---------- Example buttons (change on every refresh) ----------
+IN_DATABASE = [
+    "Lemon water cures cancer",
+    "Garlic cures COVID-19",
+    "Onions absorb the flu virus in a room",
+    "MMR vaccine causes autism",
+    "Antibiotics cure the common cold",
+    "Cracking knuckles causes arthritis",
+    "Mobile phones cause brain cancer",
+    "Microwaves cause cancer",
+    "Apple cider vinegar melts belly fat",
+    "Honey is safe for diabetics",
+    "Karela juice cures diabetes",
+    "Wet hair gives you a cold",
+    "Dengue spreads by touching a patient",
+    "TB spreads by sharing utensils",
+    "Aspirin is safe for a child's fever",
+    "Haldi doodh se corona theek ho jata hai",
+    "Subah garam paani me nimbu se cancer theek hota hai",
+]
+NOT_IN_DATABASE = [
+    "Pineapple cures dengue",
+    "Neem leaves cure typhoid",
+    "Pomegranate juice cures anemia overnight",
+]
+
+if "examples" not in st.session_state:
+    picks = random.sample(IN_DATABASE, 2) + random.sample(NOT_IN_DATABASE, 1)
+    random.shuffle(picks)
+    st.session_state["examples"] = picks
+
 def set_text(value):
     st.session_state["text"] = value
 
@@ -144,9 +212,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("**Try an example**")
-examples = ["Lemon water cures cancer", "Hot water kills coronavirus", "Pineapple cures dengue"]
-cols = st.columns(len(examples))
-for col, ex in zip(cols, examples):
+cols = st.columns(3)
+for col, ex in zip(cols, st.session_state["examples"]):
     col.button(ex, on_click=set_text, args=(ex,), use_container_width=True)
 
 user_input = st.text_area(
@@ -155,17 +222,30 @@ user_input = st.text_area(
     placeholder="Example: Subah garam paani me nimbu peene se cancer theek ho jata hai...",
 )
 
+st.session_state.setdefault("uses", 0)
+
 if st.button("Check this claim", type="primary"):
     if not user_input.strip():
         st.warning("Type or paste a health claim first.")
+    elif st.session_state["uses"] >= MAX_CHECKS_PER_SESSION:
+        st.warning("Demo limit reached for this visit. Please come back later.")
     else:
+        st.session_state["uses"] += 1
         with st.spinner("Checking trusted sources..."):
+            used_backup = False
             try:
-                r = check_claim(user_input)
-                sources = "".join(
-                    f'<span class="chip">{html.escape(str(s))}</span>' for s in r.get("sources", [])
-                )
-                st.markdown(f"""
+                r = check_claim(user_input.strip())
+            except Exception:
+                r = offline_check(user_input.strip())
+                used_backup = True
+
+        if used_backup:
+            st.info("The live AI is busy right now, so this is the closest match "
+                    "from the database instead.")
+        sources = "".join(
+            f'<span class="chip">{html.escape(str(s))}</span>' for s in r.get("sources", [])
+        )
+        st.markdown(f"""
 <div class="result">
   <div class="stamp {STYLES[r['verdict']]}">{html.escape(r['verdict'])}</div>
   <div class="claim">Claim checked: {html.escape(str(r.get('claim', '')))}</div>
@@ -174,8 +254,6 @@ if st.button("Check this claim", type="primary"):
   <div class="note">This checks claims only. It is not medical advice. See a doctor for personal health decisions.</div>
 </div>
 """, unsafe_allow_html=True)
-            except Exception as e:
-                st.error(f"Could not complete the check. Details: {e}")
 
 with st.sidebar:
     st.header("How it works")
@@ -185,4 +263,5 @@ with st.sidebar:
     st.write("4. If the claim isn't in the list, it says Unverified instead of guessing.")
     st.divider()
     st.metric("Claims in database", len(facts))
-    st.caption("Covers a limited set of topics. Unverified does not mean true.")
+    st.caption("Covers a limited set of topics. Unverified does not mean true. "
+               "Please don't enter personal or medical details.")
