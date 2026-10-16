@@ -15,8 +15,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 # ---------- Settings ----------
 # Models are tried in this order. If one is busy (503) the next one is used.
-MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite",
-          "gemini-3.1-flash-lite", "gemini-3.8-flash"]
+MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite",
+          "gemini-3.1-flash-lite"]
 MAX_CHECKS_PER_SESSION = 15
 
 # Load the key from keys.env or .env (next to this file) when running on your PC.
