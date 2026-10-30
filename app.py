@@ -25,7 +25,7 @@ for _name in ("keys.env", ".env"):
     if (_here / _name).exists():
         load_dotenv(_here / _name, override=True, encoding="utf-8-sig")
 
-st.set_page_config(page_title="Health Myth Checker", page_icon="🩺", layout="centered")
+st.set_page_config(page_title="Sach Check", page_icon="🩺", layout="centered")
 
 # ---------- Look and feel ----------
 st.markdown("""
@@ -206,7 +206,7 @@ def set_text(value):
 # ---------- Page ----------
 st.markdown("""
 <div class="hero">
-  <h1>🩺 Health Myth Checker</h1>
+  <h1>🩺 Sach Check</h1>
   <p>Got a health tip on WhatsApp? Paste it here and see what trusted sources say.</p>
 </div>
 """, unsafe_allow_html=True)
