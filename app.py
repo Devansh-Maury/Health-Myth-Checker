@@ -25,7 +25,7 @@ for _name in ("keys.env", ".env"):
     if (_here / _name).exists():
         load_dotenv(_here / _name, override=True, encoding="utf-8-sig")
 
-st.set_page_config(page_title="Sach Check", page_icon="🩺", layout="centered")
+st.set_page_config(page_title="Health Myth Checker", page_icon="🩺", layout="centered")
 
 # ---------- Look and feel ----------
 st.markdown("""
